@@ -1,0 +1,726 @@
+---
+title: "Resultados"
+author: "Frederick Mendoza Angela Caro"
+bibliography: bib.bib
+output:  
+  bookdown::word_document2:
+    number_sections: true
+    reference_docx: "Tesis_doctoraL.docx"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,dpi=2000,warning=F, message = F,comment = "")
+```
+
+
+# Modelo 1 de ecuaciones estructurales 
+# Descriptiva Consumo
+
+
+
+```{r}
+library(lavaan)
+library(lavaanPlot)
+library(writexl)
+library(readxl)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(skimr)
+library(corrplot)
+library(GGally)
+library(openxlsx)
+library(lavaan)
+library(semPlot)
+
+#bd <- readRDS("bd.rds")
+
+bdnumerica<-read_excel("bdnumerica_pls.xlsx")
+targetdep<-paste("DEP",1:20,sep="")
+targetsui<-paste("SUI",1:14,sep="")
+targetacceso<-paste("AS",1:11,sep="")
+targetapoyo<-paste("AE",1:6,sep="")
+target_consumo<-paste("CS",1:10,sep="")
+target_violencia<-paste("VI",1:6,sep="")
+target_autoestima<-paste("AU",1:10,sep="")
+bdnumerica<- bdnumerica %>% mutate_at(all_of(targetdep), ~ . - 1) %>%  mutate_at(all_of(targetsui), ~ . - 1)
+
+#depresion e ideacion suicida: ajusta de 1 a 0
+
+bdnumerica<-bdnumerica %>% mutate(DEPRESION=rowSums(select(., all_of(targetdep))),
+                                  SUICIDIO=rowSums(select(., all_of(targetsui))),
+                                  ACCESO=rowSums(select(., all_of(targetacceso))),
+                                  APOYO=rowSums(select(., all_of(targetapoyo))),
+                                  CONSUMO=rowSums(select(., all_of(target_consumo))),
+                                  VIOLENCIA=rowSums(select(., all_of(target_violencia))),
+                                  AUTOESTIMA=rowSums(select(., all_of(target_autoestima))))
+
+skim(bdnumerica %>% select(DEPRESION,SUICIDIO,ACCESO,APOYO,CONSUMO,VIOLENCIA,AUTOESTIMA))->tabla
+cor(bdnumerica %>% select(DEPRESION,SUICIDIO,ACCESO,APOYO,CONSUMO,VIOLENCIA,AUTOESTIMA))->correlaciones_finales 
+write.xlsx(correlaciones_finales%>% as.data.frame(), "correlaciones_finales.xlsx")
+png("grafico_correlaciones.png")
+corrplot(correlaciones_finales,method = "color")
+dev.off()
+write_xlsx(tabla,"descriptiva_totales.xlsx")
+punto_corte<-mean(bdnumerica$DEPRESION)+sd(bdnumerica$DEPRESION)
+nrow(bdnumerica %>% filter(DEPRESION>punto_corte))/nrow(bdnumerica)
+png("grafico_correlaciones_2.png")
+ggpairs(bdnumerica %>% select(DEPRESION,SUICIDIO,ACCESO,APOYO,CONSUMO,VIOLENCIA,AUTOESTIMA))
+dev.off()
+
+png("histograma.png")
+ggplot(bdnumerica, aes(DEPRESION))+geom_histogram(color="black")+geom_vline(xintercept = punto_corte,color="red")
+dev.off()
+
+
+punto_corte<-mean(bdnumerica$SUICIDIO)+sd(bdnumerica$SUICIDIO)
+nrow(bdnumerica %>% filter(SUICIDIO>punto_corte))/nrow(bdnumerica)
+png("histograma_sui.png")
+ggplot(bdnumerica,aes(SUICIDIO))+geom_histogram(color="black")+geom_vline(xintercept = punto_corte,color="red")
+dev.off()
+
+punto_corte<-mean(bdnumerica$AUTOESTIMA)+sd(bdnumerica$AUTOESTIMA)
+nrow(bdnumerica %>% filter(AUTOESTIMA>punto_corte))/nrow(bdnumerica)
+png("histograma_auto.png")
+ggplot(bdnumerica,aes(AUTOESTIMA))+geom_histogram(color="black")+geom_vline(xintercept = punto_corte,color="red")
+dev.off()
+
+
+
+
+
+```
+
+# Descriptiva de consumo
+
+```{r}
+library(dplyr)
+library(xlsx2dfs)
+library(tidyr)
+consu<-paste("CS",1:10,sep="")
+
+bdnumerica %>% select(all_of(consu))->Con
+
+Con %>% gather()->derretido
+table(derretido$key,derretido$value) %>% prop.table(margin = 1) %>% write.xlsx("frecuencias_consumo.xlsx")
+
+
+#violencia
+
+vio<-paste("VI",1:6,sep="")
+
+bdnumerica %>% select(all_of(vio))->violencia
+
+violencia %>% gather()->derretido
+table(derretido$key,derretido$value) %>% prop.table(margin = 1) %>% write.xlsx("frecuencias_violencia.xlsx")
+
+#apoyo
+
+apo<-paste("AE",1:6,sep="")
+
+bdnumerica %>% select(all_of(apo))->apoyo
+
+apoyo %>% gather()->derretido
+table(derretido$key,derretido$value) %>% prop.table(margin = 1) %>% write.xlsx("frecuencias_apoyo.xlsx")
+
+#acceso salud
+
+acceso<-paste("AS",1:11,sep="")
+
+bdnumerica %>% select(all_of(acceso))->acceso_salud
+
+acceso_salud %>% gather()->derretido
+table(derretido$key,derretido$value) %>% prop.table(margin = 1) %>% write.xlsx("frecuencias_acceso.xlsx")
+
+bd2<-bdnumerica %>% dplyr::select(-c("DEPRESION","SUICIDIO","ACCESO","APOYO","CONSUMO","VIOLENCIA","AUTOESTIMA"))
+
+
+
+
+
+
+
+
+```
+
+
+```{r}
+library(lavaan)
+library(semPlot)
+
+# Definir el modelo SEM
+model_std_1_AF <- '
+# DefiniciÛn de las relaciones entre las variables latentes
+ACCESO=~AS1+AS2+AS3+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11
+VIOLENCIA=~VI1+VI2+VI3+VI4+VI5+VI6
+APOYO_SOCIAL=~AE1+AE2+AE3+AE4+AE5+AE6
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP8+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP16+DEP17+DEP18+DEP19+DEP20
+CONSUMO=~CS1+CS2+CS3+CS4+CS5+CS6+CS7+CS8+CS9+CS10
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI6+SUI7+SUI8+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14
+AUTOESTIMA=~AU1+AU2+AU3+AU4+AU5+AU6+AU7+AU8+AU9+AU10
+
+# DefiniciÛn de las covarianzas
+AS2 ~~ AS3
+DEP12 ~~ DEP16
+SUI13 ~~ SUI14
+SUI6 ~~ SUI8
+AS9 ~~ AS10
+SUI12 ~~ SUI14
+SUI6 ~~ SUI14
+SUI6 ~~ SUI12
+SUI12 ~~ SUI13
+DEP8 ~~ DEP16
+
+# Regresiones
+SUICIDIO ~ a*AUTOESTIMA + b*APOYO_SOCIAL + c*DEPRESION + d*CONSUMO + e*VIOLENCIA + f*ACCESO
+
+# Mediaciones
+AUTOESTIMA ~ g*APOYO_SOCIAL + h*VIOLENCIA
+DEPRESION ~ i*APOYO_SOCIAL + j*VIOLENCIA
+CONSUMO ~ k*APOYO_SOCIAL + l*VIOLENCIA
+VIOLENCIA ~ m*ACCESO
+APOYO_SOCIAL ~ n*ACCESO
+
+# Efecto indirecto
+ga := g*a
+ha := h*a
+ic := i*c
+jc := j*c
+kd := k*d
+ld := l*d
+me := m*e
+nb := n*b
+'
+
+# Ejecutar el modelo SEM
+fit_model_std_1_AF <- sem(model_std_1_AF, data = bd2, std.lv = T, estimator = "MLR")
+
+# Resumen del modelo
+summary(fit_model_std_1_AF, fit.measures = TRUE, standardized = TRUE)
+
+# Graficar el modelo
+p <- semPaths(fit_model_std_1_AF, what = "path", whatLabels = "std.all*", structural = TRUE, layout = "circle", dpi = 300)
+png("bibujo1_fit_model_std_1_latentes.png", width = 1600, height = 1200, res = 1000)
+plot(p)
+dev.off()
+
+# Guardar el gr·fico
+#save_png(p, "dibujo1_fit_model_std_1.png")
+
+
+
+# Obtener y guardar las medidas de ajuste del modelo
+fitMeasures(fit_model_std_1_AF, c("rmsea.robust", "cfi", "tli")) 
+
+
+# Obtener y guardar los par√°metros estimados del modelo
+library(dplyr)
+library(writexl)
+parametros_fit_model_std_1_AF <- parameterEstimates(fit_model_std_1_AF, standardized = TRUE) %>%
+  filter(op %in% c("=~", ":=", "~")) %>%
+  select(-c(std.nox, std.lv, label))
+write_xlsx(parametros_fit_model_std_1_AF, "parametros_modelo1_fit_model_std_1_AF.xlsx")
+
+# Obtener los residuos del modelo
+residuals <- lavInspect(fit_model_std_1_AF, "residuals")
+
+# Convertir a un data frame si es necesario
+residuals_df <- as.data.frame(residuals)
+
+# Verificar la normalidad utilizando un test como Shapiro-Wilk
+shapiro_results <- apply(residuals_df, 2, shapiro.test)
+
+# Imprimir los resultados
+print(shapiro_results)
+
+
+# Verificar normalidad multivariada de los datos
+mvn_result <- mvn(bd2, mvnTest = "mardia")
+
+```
+
+```{r}
+library(lavaan)
+library(semPlot)
+
+# Definir el modelo SEM eliminando indicadores que tienen baja carga factorial: VI5, VI6, AU8, CS2,CS10
+model_std_1_AF_sin <- '
+# DefiniciÛn de las relaciones entre las variables latentes
+ACCESO=~AS1+AS2+AS3+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11
+VIOLENCIA=~VI1+VI2+VI3+VI4
+APOYO_SOCIAL=~AE1+AE2+AE3+AE4+AE5+AE6
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP8+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP16+DEP17+DEP18+DEP19+DEP20
+CONSUMO=~CS1+CS3+CS4+CS5+CS6+CS7+CS8+CS9
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI6+SUI7+SUI8+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14
+AUTOESTIMA=~AU1+AU2+AU3+AU4+AU5+AU6+AU7+AU8+AU9+AU10
+
+# DefiniciÛn de las covarianzas
+AS2 ~~ AS3
+DEP12 ~~ DEP16
+SUI13 ~~ SUI14
+SUI6 ~~ SUI8
+AS9 ~~ AS10
+SUI12 ~~ SUI14
+SUI6 ~~ SUI14
+SUI6 ~~ SUI12
+SUI12 ~~ SUI13
+DEP8 ~~ DEP16
+
+# Regresiones
+SUICIDIO ~ a*AUTOESTIMA + b*APOYO_SOCIAL + c*DEPRESION + d*CONSUMO + e*VIOLENCIA + f*ACCESO
+
+# Mediaciones
+AUTOESTIMA ~ g*APOYO_SOCIAL + h*VIOLENCIA
+DEPRESION ~ i*APOYO_SOCIAL + j*VIOLENCIA
+CONSUMO ~ k*APOYO_SOCIAL + l*VIOLENCIA
+VIOLENCIA ~ m*ACCESO
+APOYO_SOCIAL ~ n*ACCESO
+
+# Efecto indirecto
+ga := g*a
+ha := h*a
+ic := i*c
+jc := j*c
+kd := k*d
+ld := l*d
+me := m*e
+nb := n*b
+'
+
+# Ejecutar el modelo SEM
+fit_model_std_1_AF_sin <- sem(model_std_1_AF_sin, data = bd2, std.lv = T, estimator = "MLR")
+
+# Resumen del modelo
+summary(fit_model_std_1_AF_sin, fit.measures = TRUE, standardized = TRUE)
+
+# Graficar el modelo
+
+
+p <- semPaths(fit_model_std_1_AF_sin, what = "path", whatLabels = "std.all*", structural = TRUE, layout = "spring", rotation = 3, dpi = 300)
+png("bibujo1_fit_model_std_1_sin_latentes.png", width = 1600, height = 1200, res = 1000)
+plot(p)
+dev.off()
+
+lavaanPlot(model = fit_model_std_1_AF_sin, coefs=T,stand=T,graph_options = list(rankdir = "LR"), stars=c("latent","regress")) -> dibujo1
+
+save_png(dibujo1, "dibujo1.png")
+
+
+
+
+# Obtener y guardar las medidas de ajuste del modelo
+fitMeasures(fit_model_std_1_AF_sin, c("rmsea.robust", "cfi", "tli")) 
+
+
+# Obtener y guardar los par√°metros estimados del modelo
+parametros_fit_model_std_1_AF_sin <- parameterEstimates(fit_model_std_1_AF_sin, standardized = TRUE) %>%
+  filter(op %in% c("=~", ":=", "~")) %>%
+  select(-c(std.nox, std.lv, label))
+write_xlsx(parametros_fit_model_std_1_AF_sin, "parametros_modelo1_fit_model_std_1_AF_sin.xlsx")
+
+
+
+
+
+
+```
+
+```{r}
+
+bd2<-bdnumerica %>% dplyr::select(-c("DEPRESION","SUICIDIO","ACCESO","APOYO","CONSUMO","VIOLENCIA","AUTOESTIMA"))
+
+model4<-'
+ACCESO=~AS1+AS2+AS3+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11
+VIOLENCIA=~VI1+VI2+VI3+VI4
+APOYO_SOCIAL=~AE1+AE2+AE3+AE4+AE5+AE6
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP8+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP16+DEP17+DEP18+DEP19+DEP20
+CONSUMO=~CS1+CS3+CS4+CS5+CS6+CS7+CS8+CS9
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI6+SUI7+SUI8+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14
+AUTOESTIMA=~AU1+AU2+AU3+AU4+AU5+AU6+AU7+AU8+AU9+AU10
+
+
+AS2~~AS3
+DEP12~~DEP16
+SUI13~~SUI14
+SUI6~~SUI8
+AS9~~AS10
+SUI12~~SUI14
+SUI6~~SUI14
+SUI6~~SUI12
+SUI12~~SUI13
+DEP8~~DEP16
+
+
+# Regresiones
+
+SUICIDIO ~ a*AUTOESTIMA + b*APOYO_SOCIAL+ c*DEPRESION + d*CONSUMO + e*VIOLENCIA 
+
+# Mediaciones
+
+AUTOESTIMA~g*APOYO_SOCIAL + h*VIOLENCIA
+DEPRESION~i*APOYO_SOCIAL + j*VIOLENCIA
+CONSUMO~  l*VIOLENCIA
+VIOLENCIA~m*ACCESO
+APOYO_SOCIAL~n*ACCESO
+
+#EFECTO INDIRECTO
+ga:=g*a
+ha:=h*a
+ic:=i*c
+jc:=j*c
+ld:=l*d
+me:=m*e
+'
+
+# Ejecutar el modelo SEM
+fit_sem4 <- sem(model4, data = bd2, std.lv = T, estimator = "MLR")
+# Resumen del modelo
+summary(fit_sem4, fit.measures = TRUE, standardized = TRUE)->resumen
+resumen
+
+
+p <- semPaths(fit_sem4,   what = "path",   whatLabels = "std.all*",   structural = TRUE,
+  layout = "circle", dpi = 300)
+
+png("bibujo4_latentes.png",width = 1600, height = 1200,res=1000)
+plot(p)
+dev.off()
+
+
+lavaanPlot(model = fit_sem4, coefs=T,stand=T,graph_options = list(rankdir = "LR"), stars=c("latent","regress")) -> dibujo4
+
+save_png(dibujo4, "dibujo4.png")
+
+lavaanPlot(model = fit_sem4,graph_options = list(rankdir = "LR"))->modelo_teorico
+save_png (modelo_teorico, "modelo_teorico.png")
+
+
+fitMeasures(fit_sem4,c("rmsea.robust","cfi","tli"))
+
+parametros_md4<-parameterEstimates(fit_sem4,standardized=T) %>% filter(op=="=~"|op==":="|op=="~") %>% select(-c(std.nox,std.lv,label))
+write_xlsx(parametros_md4,"parametros_modelo4.xlsx")
+```
+
+
+
+
+
+```{r}
+
+##AN¡LISIS FACTORIAL
+
+#### Modelos individuales
+model_std_ACCESO <- '
+# Definici√≥n de las relaciones entre las variables latentes
+ACCESO=~AS1+AS2+AS3+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO<- cfa(model=model_std_ACCESO,data=bd2, estimator = "WLSMV")
+summary (Fit_ACCESO, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO)
+
+##PRIMERA RONDA Modification Index AS2 ~~  AS3 108.399
+
+### Prueba Elimino AS2
+
+Mod_ACCESO_SIN_AS2 <- '
+ACCESO_AS2=~AS1+AS3+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS2<- cfa(model=Mod_ACCESO_SIN_AS2,data=bd2, estimator = "MLR")
+summary (Fit_ACCESO_AS2, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS2)
+
+
+### Prueba Elimino AS3
+
+Mod_ACCESO_SIN_AS3 <- '
+ACCESO_AS2=~AS1+AS2+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS3<- cfa(model=Mod_ACCESO_SIN_AS3,data=bd2, estimator = "MLR")
+summary (Fit_ACCESO_AS3, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS3)
+
+## Al comparar entre los modelos AS2 y AS3, elegimos eliminar el AS3 pues proporciona mejores Ìndices de ajuste
+
+## SEGUNDA RONDA Modification Index AS1 ~~  AS2 136.861
+
+Mod_ACCESO_SIN_AS1 <- '
+ACCESO_AS1=~AS2+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS1<- cfa(model= Mod_ACCESO_SIN_AS1,data=bd2, estimator = "MLR")
+summary (Fit_ACCESO_AS1, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS1)
+
+Mod_ACCESO_SIN_AS2 <- '
+ACCESO_AS1=~AS1+AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS2<- cfa(model=Mod_ACCESO_SIN_AS2,data=bd2, estimator = "MLR")
+summary (Fit_ACCESO_AS2, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS2)
+
+## Al comparar entre los modelos AS1 y AS2, elegimos eliminar el AS1 pues proporciona mejores Ìndices de ajuste
+
+##TERCERA RONDA Modification Index AS2 ~~  AS6 79.593
+
+Mod_ACCESO_SIN_AS2 <- '
+ACCESO_AS1=~AS4+AS5+AS6+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS2<- cfa(model=Mod_ACCESO_SIN_AS2,data=bd2, estimator = "MLR")
+summary (Fit_ACCESO_AS2, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS2)
+
+Mod_ACCESO_SIN_AS6 <- '
+ACCESO_AS1=~AS2+AS4+AS5+AS7+AS8+AS9+AS10+AS11'
+
+Fit_ACCESO_AS6<- cfa(model=Mod_ACCESO_SIN_AS6,data=bd2, estimator = "WLSMV")
+summary (Fit_ACCESO_AS6, fit.measures= TRUE, )
+modificationIndices (Fit_ACCESO_AS6)
+
+## Al comparar entre los modelos AS2 y AS6, elegimos eliminar el AS6 pues proporciona mejores Ìndices de ajuste. EL modelo final eliminÛ AS3, AS1 y AS6
+
+##modelo violencia
+
+model_std_VIOLENCIA <- '
+# Definici√≥n de las relaciones entre las variables latentes
+VIOLENCIA=~VI1+VI2+VI3+VI4+VI5+VI6'
+
+Fit_VIOLENCIA<- cfa(model= model_std_VIOLENCIA,data=bd2, estimator = "WLSMV")
+summary (Fit_VIOLENCIA, fit.measures= TRUE, )
+modificationIndices (Fit_VIOLENCIA)
+
+
+##PRIMERA RONDA Modification Index VI1 ~~ VI2 23.657
+
+### Prueba Elimino VI1
+mod_std_VIOLENCIA_SIN_VI1 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+VIOLENCIA=~VI2+VI3+VI4+VI5+VI6'
+
+Fit_std_VIOLENCIA_SIN_VI1<- cfa(model=mod_std_VIOLENCIA_SIN_VI1,data=bd2, estimator = "WLSMV")
+summary (Fit_std_VIOLENCIA_SIN_VI1, fit.measures= TRUE, )
+modificationIndices (Fit_std_VIOLENCIA_SIN_VI1)
+
+### Prueba Elimino VI2
+mod_std_VIOLENCIA_SIN_VI2 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+VIOLENCIA=~VI1+VI3+VI4+VI5+VI6'
+
+Fit_std_VIOLENCIA_SIN_VI2<- cfa(model=mod_std_VIOLENCIA_SIN_VI2,data=bd2, estimator = "WLSMV")
+summary (Fit_std_VIOLENCIA_SIN_VI2, fit.measures= TRUE, )
+modificationIndices (Fit_std_VIOLENCIA_SIN_VI2)
+
+#Al comparar entre el VI1 Y VI2 hay mejor ajuste eliminando el VI2
+
+##SEGUNDA RONDA Modification Index VI5 ~~ VI6 9.750
+
+mod_std_VIOLENCIA_SIN_VI5 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+VIOLENCIA=~VI1+VI3+VI4'
+
+Fit_std_VIOLENCIA_SIN_VI5<- cfa(model=mod_std_VIOLENCIA_SIN_VI5,data=bd2, estimator = "WLSMV")
+summary (Fit_std_VIOLENCIA_SIN_VI5, fit.measures= TRUE, )
+modificationIndices (Fit_std_VIOLENCIA_SIN_VI5)
+
+mod_std_VIOLENCIA_SIN_VI6 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+VIOLENCIA=~VI1+VI3+VI4+VI5'
+
+Fit_std_VIOLENCIA_SIN_VI6<- cfa(model=mod_std_VIOLENCIA_SIN_VI6,data=bd2, estimator = "WLSMV")
+summary (Fit_std_VIOLENCIA_SIN_VI6, fit.measures= TRUE, )
+modificationIndices (Fit_std_VIOLENCIA_SIN_VI6)
+
+#VI5 Y VI6 dan RMSA SIGNIFICATIVOS DE 0,00
+
+#Al final se eliminan los Ìtems VI2 Y VI6
+
+## APOYO_SOCIAL
+model_std_APOYO_SOCIAL <- '
+# Definici√≥n de las relaciones entre las variables latentes
+APOYO_SOCIAL=~AE1+AE2+AE3+AE4+AE5+AE6'
+
+Fit_APOYO_SOCIAL<- cfa(model=model_std_APOYO_SOCIAL,data=bd2, estimator = "WLSMV")
+summary (Fit_APOYO_SOCIAL, fit.measures= TRUE, )
+modificationIndices (Fit_APOYO_SOCIAL)
+
+##PRIMERA RONDA Modification Index  AE4 ~~ AE6 7.562
+
+model_std_APOYO_SOCIAL_SIN_AE6 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+APOYO_SOCIAL=~AE1+AE2+AE3+AE4+AE5'
+
+Fit_APOYO_SOCIAL_SIN_AE6<- cfa(model=model_std_APOYO_SOCIAL_SIN_AE6,data=bd2, estimator = "WLSMV")
+summary (Fit_APOYO_SOCIAL_SIN_AE6, fit.measures= TRUE, )
+modificationIndices (Fit_APOYO_SOCIAL_SIN_AE6)
+
+
+model_std_APOYO_SOCIAL_SIN_AE4 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+APOYO_SOCIAL=~AE1+AE2+AE3+AE5+AE6'
+
+Fit_APOYO_SOCIAL_SIN_AE4<- cfa(model=model_std_APOYO_SOCIAL_SIN_AE4,data=bd2, estimator = "WLSMV")
+summary (Fit_APOYO_SOCIAL_SIN_AE4, fit.measures= TRUE, )
+modificationIndices (Fit_APOYO_SOCIAL_SIN_AE4)
+
+#El ajuste del modelo da mejor cuando se elimina el Ìtem 6 
+
+model_std_DEPRESION <- '
+# Definici√≥n de las relaciones entre las variables latentes
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP8+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP16+DEP17+DEP18+DEP19+DEP20'
+
+Fit_DEPRESION<- cfa(model=model_std_DEPRESION,data=bd2, estimator = "WLSMV")
+summary (Fit_DEPRESION, fit.measures= TRUE, )
+modificationIndices (Fit_DEPRESION)
+
+##PRIMERA RONDA Modification Index DEP8 ~~ DEP16 277.423
+
+model_std_DEPRESION_SIN_DEP8 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP16+DEP17+DEP18+DEP19+DEP20'
+
+Fit_DEPRESION_SIN_DEP8<- cfa(model=model_std_DEPRESION_SIN_DEP8,data=bd2, estimator = "WLSMV")
+summary (Fit_DEPRESION_SIN_DEP8, fit.measures= TRUE, )
+modificationIndices (Fit_DEPRESION_SIN_DEP8)
+
+model_std_DEPRESION_SIN_DEP16 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP8+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP17+DEP18+DEP19+DEP20'
+
+Fit_DEPRESION_SIN_DEP16<- cfa(model=model_std_DEPRESION_SIN_DEP16,data=bd2, estimator = "WLSMV")
+summary (Fit_DEPRESION_SIN_DEP16, fit.measures= TRUE, )
+modificationIndices (Fit_DEPRESION_SIN_DEP16)
+
+## tiene mejor Ìndice de ajuste el DEP16, por tanto se eleimina
+
+#ronda 2 modindices DEP8 ~~ DEP12 278.051
+
+model_std_DEPRESION_SIN_DEP8 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+DEPRESION=~DEP1+DEP2+DEP3+DEP4+DEP5+DEP6+DEP7+DEP9+DEP10+DEP11+DEP12+DEP13+DEP14+DEP15+DEP17+DEP18+DEP19+DEP20'
+
+Fit_DEPRESION_SIN_DEP8<- cfa(model=model_std_DEPRESION_SIN_DEP8,data=bd2, estimator = "WLSMV")
+summary (Fit_DEPRESION_SIN_DEP8, fit.measures= TRUE, )
+modificationIndices (Fit_DEPRESION_SIN_DEP8)
+
+## LOS DOS DAN BUENOS AJUSTES, QUE ELIMAN LOS DOS DEP 8 Y DEP 16, EL MODELO QUEDA SIN DEP 8 Y 16
+
+## CONSUMO
+
+model_std_CONSUMO <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS1+CS2+CS3+CS4+CS5+CS6+CS7+CS8+CS9+CS10'
+
+Fit_CONSUMO<- cfa(model=model_std_CONSUMO,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO)
+
+##ELIMMINANDO LOS VALORES CON MENOR CARGA FACTORIAL CS2 Y CS10
+
+model_std_CONSUMO_SIN_CS2 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS1+CS3+CS4+CS5+CS6+CS7+CS8+CS9+CS10'
+
+Fit_CONSUMO_SIN_CS2<- cfa(model=model_std_CONSUMO_SIN_CS2,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO_SIN_CS2, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO_SIN_CS2)
+
+model_std_CONSUMO_SIN_CS10 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS1+CS2+CS3+CS4+CS5+CS6+CS7+CS8+CS9'
+
+Fit_CONSUMO_SIN_CS10<- cfa(model=model_std_CONSUMO_SIN_CS10,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO_SIN_CS10, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO_SIN_CS10)
+
+
+model_std_CONSUMO_SIN_CS2_CS10 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS1+CS3+CS4+CS5+CS6+CS7+CS8+CS9'
+
+Fit_CONSUMO_SIN_CS2_CS10<- cfa(model=model_std_CONSUMO_SIN_CS2_CS10,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO_SIN_CS2_CS10, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO_SIN_CS2_CS10)
+
+##Hasta aqui se eliminan los items CS2	~~	CS10	
+
+#SEGUNDA RONDA CS1	~~	CS3	58.232
+
+model_std_CONSUMO_SIN_CS3 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS1+CS4+CS5+CS6+CS7+CS8+CS9'
+
+Fit_CONSUMO_SIN_CS3<- cfa(model=model_std_CONSUMO_SIN_CS3,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO_SIN_CS3, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO_SIN_CS3)
+
+##SIN CS10
+
+model_std_CONSUMO_SIN_CS1 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+CONSUMO=~CS3+CS4+CS5+CS6+CS7+CS8+CS9'
+
+Fit_CONSUMO_SIN_CS1<- cfa(model=model_std_CONSUMO_SIN_CS1,data=bd2, estimator = "WLSMV")
+summary (Fit_CONSUMO_SIN_CS1, fit.measures= TRUE, )
+modificationIndices (Fit_CONSUMO_SIN_CS1)
+
+#Dan el mismo Ìndice de ajuste los dos items, se leminar· el CS1, EL MODELO QUEDA SIN LOS ÕTEMS CS2, CS10 Y CS1
+
+#AUTOESTIMA
+
+model_std_AUTOESTIMA <- '
+# Definici√≥n de las relaciones entre las variables latentes
+AUTOESTIMA=~AU1+AU2+AU3+AU4+AU5+AU6+AU7+AU8+AU9+AU10'
+
+Fit_AUTOESTIMA<- cfa(model=model_std_AUTOESTIMA,data=bd2, estimator = "WLSMV")
+summary (Fit_AUTOESTIMA, fit.measures= TRUE, )
+modificationIndices (Fit_AUTOESTIMA)
+
+### PRIMERA RONDA MODINDICES AU2	~~	AU6	63.336	
+
+model_std_AUTOESTIMA_SIN_AU2 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+AUTOESTIMA=~AU1+AU3+AU4+AU5+AU6+AU7+AU9+AU10'
+
+Fit_AUTOESTIMA_SIN_AU2<- cfa(model=model_std_AUTOESTIMA_SIN_AU2,data=bd2, estimator = "WLSMV")
+summary (Fit_AUTOESTIMA_SIN_AU2, fit.measures= TRUE, )
+modificationIndices (Fit_AUTOESTIMA_SIN_AU2)
+
+## SIN AU6
+
+model_std_AUTOESTIMA_SIN_AU6 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+AUTOESTIMA=~AU1+AU2+AU3+AU4+AU5+AU7+AU9+AU10'
+
+Fit_AUTOESTIMA_SIN_AU6<- cfa(model=model_std_AUTOESTIMA_SIN_AU6,data=bd2, estimator = "WLSMV")
+summary (Fit_AUTOESTIMA_SIN_AU6, fit.measures= TRUE, )
+modificationIndices (Fit_AUTOESTIMA_SIN_AU6)
+
+##El AU6 tiene mejor Ìndices de ajuste, AL FINAL ELMODELO QUEDA SIN AU6 Y SIN AU8
+
+##I.SUICIDA
+
+model_std_SUICIDIO <- '
+# Definici√≥n de las relaciones entre las variables latentes
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI6+SUI7+SUI8+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14'
+
+Fit_SUICIDIO<- cfa(model=model_std_SUICIDIO,data=bd2, estimator = "WLSMV")
+summary (Fit_SUICIDIO, fit.measures= TRUE, )
+modificationIndices (Fit_SUICIDIO)
+
+##RONDA 1 MONINDICES SUI6	~~	SUI8	166.313
+
+model_std_SUICIDIO_SIN_SUI6 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI7+SUI8+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14'
+
+Fit_SUICIDIO_SIN_SUI6<- cfa(model=model_std_SUICIDIO_SIN_SUI6,data=bd2, estimator = "WLSMV")
+summary (Fit_SUICIDIO_SIN_SUI6, fit.measures= TRUE, )
+modificationIndices (Fit_SUICIDIO_SIN_SUI6)
+
+model_std_SUICIDIO_SIN_SUI8 <- '
+# Definici√≥n de las relaciones entre las variables latentes
+SUICIDIO=~SUI1+SUI2+SUI3+SUI4+SUI5+SUI6+SUI7+SUI9+SUI10+SUI11+SUI12+SUI13+SUI14'
+
+Fit_SUICIDIO_SIN_SUI8<- cfa(model=model_std_SUICIDIO_SIN_SUI8,data=bd2, estimator = "WLSMV")
+summary (Fit_SUICIDIO_SIN_SUI8, fit.measures= TRUE, )
+modificationIndices (Fit_SUICIDIO_SIN_SUI8)
+
+```
